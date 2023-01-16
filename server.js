@@ -99,47 +99,78 @@ const wait = async (duration) => {
 };
 
 app.get("/login", async (req, res) => {
-  await wait(2000);
-
-  res.send({
-    name: "성민",
-    age: 30,
-  });
+  console.log("zz");
+  res.send(req.session);
 });
 
-app.post("/login", (req, res) => {
+app.post("/login", async (req, res) => {
   const UserModel = require("./model/user/userModel");
 
   const { phoneNumber, nickname, age, sex, local } = req.body;
 
-  UserModel.insert({
-    phoneNumber,
-    nickname,
-    age,
-    sex,
-    local,
-  });
+  // const lastInsertSeq = await UserModel.insert({
+  //   phoneNumber,
+  //   nickname,
+  //   age,
+  //   sex,
+  //   local,
+  // });
 
-  res.send({
-    name: "성민",
-    age: 30,
-  });
+  req.body.seq = 1;
+  req.session.loginUser = req.body;
+  req.session.save();
+
+  res.send(req.session.loginUser);
 });
 
-app.post("/sms/cert", (req, res) => {
-  const { phoneNumber } = req.body;
-  const CertModel = require("./model/cert/certModel");
-  const nowIp = ip.address();
-  const nowDate = get_now_date();
+app.get("/sms/cert", async (req, res) => {
+  const { certNumber } = req.query;
 
-  CertModel.insert({
-    phoneNumber: phoneNumber,
-    regDate: nowDate,
-    editDate: nowDate,
-    ip: nowIp,
+  const result = {
+    code: "success",
+    message: "",
+  };
+
+  const certRow = Model.excute({
+    sql: `SELECT * FROM cert WHERE `,
+    type: "row",
   });
 
-  res.send({});
+  res.send(result);
+});
+
+app.post("/sms/cert", async (req, res) => {
+  let { phoneNumber } = req.body;
+  const CertModel = require("./model/cert/certModel");
+  const certNumber = get_random_number(4);
+  const nowDate = get_now_date();
+
+  if (!phoneNumber) {
+    res.send({});
+    return;
+  }
+
+  await SEND_NAVER_SMS_API({
+    from: "01056539944",
+    content: `인증번호는 ${certNumber} 입니다`,
+    messages: [
+      {
+        to: phoneNumber,
+      },
+    ],
+  });
+
+  // await CertModel.insert({
+  //   phoneNumber: phoneNumber,
+  //   certNumber: certNumber,
+  //   regDate: nowDate,
+  //   editDate: nowDate,
+  //   ip: nowIp,
+  // });
+
+  res.send({
+    code: "success",
+  });
 });
 
 server.listen(port, () => {
@@ -148,6 +179,65 @@ server.listen(port, () => {
     fs.mkdirSync(dir);
   }
 });
+
+async function SEND_NAVER_SMS_API(options) {
+  const axios = require("axios");
+  const CryptoJS = require("crypto-js");
+
+  const date = Date.now().toString();
+  const SERVICE_ID = "ncp:sms:kr:260593297699:military-garting";
+  const SECRET_KEY = "BaTdpzYpdkZ9AQO2puRQFl4cp5S6uFaaSAlrKDde";
+  const ACCESS_KEY = "Cs1Oz7GhrZdTTb6Jq63O";
+
+  const method = "POST";
+  const space = " ";
+  const newLine = "\n";
+  const url2 = `/sms/v2/services/${SERVICE_ID}/messages`;
+
+  const hmac = CryptoJS.algo.HMAC.create(CryptoJS.algo.SHA256, SECRET_KEY);
+  hmac.update(method);
+  hmac.update(space);
+  hmac.update(url2);
+  hmac.update(newLine);
+  hmac.update(date);
+  hmac.update(newLine);
+  hmac.update(ACCESS_KEY);
+  const hash = hmac.finalize();
+  const SIGNATURE = hash.toString(CryptoJS.enc.Base64);
+
+  await axios
+    .post(
+      `https://sens.apigw.ntruss.com/sms/v2/services/${SERVICE_ID}/messages`,
+      {
+        type: "SMS",
+        countryCode: "82",
+        ...options,
+      },
+      {
+        headers: {
+          "Contenc-type": "application/json; charset=utf-8",
+          "x-ncp-iam-access-key": ACCESS_KEY,
+          "x-ncp-apigw-timestamp": date,
+          "x-ncp-apigw-signature-v2": SIGNATURE,
+        },
+      }
+    )
+    .then((res) => {})
+    .catch((err) => {
+      console.log(err);
+    });
+}
+
+function get_random_number(max) {
+  let a = [];
+
+  for (let i = 0; i < max; i++) {
+    const c = parseInt(Math.random() * 9);
+    a.push(c);
+  }
+
+  return a.join("");
+}
 
 function get_now_date() {
   const today = new Date();
