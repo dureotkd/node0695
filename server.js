@@ -11,6 +11,8 @@ const multer = require("multer");
 const session = require("express-session");
 const cookieParser = require("cookie-parser");
 
+const ip = require("ip");
+
 const model = require("./model/core");
 const Model = new model();
 // const UserModel = require("./model/user/userModel");
@@ -88,8 +90,17 @@ app.get("/", (req, res) => {
     age: 30,
   });
 });
+const wait = async (duration) => {
+  return new Promise((resolve, reject) => {
+    setTimeout(() => {
+      resolve(true);
+    }, duration);
+  });
+};
 
-app.get("/login", (req, res) => {
+app.get("/login", async (req, res) => {
+  await wait(2000);
+
   res.send({
     name: "성민",
     age: 30,
@@ -97,14 +108,38 @@ app.get("/login", (req, res) => {
 });
 
 app.post("/login", (req, res) => {
-  const body = req.body;
+  const UserModel = require("./model/user/userModel");
 
-  console.log(body);
+  const { phoneNumber, nickname, age, sex, local } = req.body;
+
+  UserModel.insert({
+    phoneNumber,
+    nickname,
+    age,
+    sex,
+    local,
+  });
 
   res.send({
     name: "성민",
     age: 30,
   });
+});
+
+app.post("/sms/cert", (req, res) => {
+  const { phoneNumber } = req.body;
+  const CertModel = require("./model/cert/certModel");
+  const nowIp = ip.address();
+  const nowDate = get_now_date();
+
+  CertModel.insert({
+    phoneNumber: phoneNumber,
+    regDate: nowDate,
+    editDate: nowDate,
+    ip: nowIp,
+  });
+
+  res.send({});
 });
 
 server.listen(port, () => {

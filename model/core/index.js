@@ -10,8 +10,7 @@ class Core {
     const column = Object.keys(data);
     const values = Object.values(data);
 
-    if (column.length !== values.length)
-      return throwError("Error Object Key Value");
+    if (column.length !== values.length) throwError("Error Object Key Value");
 
     const c = column.join(",");
     const v = values.join("','");
@@ -22,7 +21,7 @@ class Core {
   /**
    * * MAKE MYSQL UPDATE 쿼리문
    */
-  getUpdateQuery({ table, data, where }) {
+  getUpdateQuery({ table, data, where = [1] }) {
     let c = "";
 
     for (const [column, value] of Object.entries(data)) {
@@ -72,7 +71,7 @@ class Core {
    * ? Promise 객체에 대해서 자세히 공부해보기
    * ? Callback 함수에 대해서 자세히 공부해보기
    */
-  excute({ database = "code_exam", sql, type }) {
+  excute({ database = "militaryGaeting", sql, type }) {
     return new Promise(function (resolve, reject) {
       db.getConnection(database, function (err, connection) {
         if (err) {

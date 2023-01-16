@@ -1,13 +1,13 @@
 const Core = require("../core");
 
-class UserModel extends Core {
+class CertModel extends Core {
   constructor(props) {
     super(props);
     this.core = new Core();
   }
 
   getRow() {
-    const sql = "SELECT * FROM `user`";
+    const sql = "SELECT * FROM `cert`";
 
     const res = this.core.excute({
       database: "militaryGaeting",
@@ -19,7 +19,7 @@ class UserModel extends Core {
   }
 
   getRowByPk(seq) {
-    const sql = `SELECT * FROM user WHERE seq = ${seq}`;
+    const sql = `SELECT * FROM cert WHERE seq = ${seq}`;
 
     const res = this.core.excute({
       database: "militaryGaeting",
@@ -31,7 +31,7 @@ class UserModel extends Core {
   }
 
   getAll() {
-    const sql = "SELECT * FROM `user`";
+    const sql = "SELECT * FROM `cert`";
 
     const res = this.core.excute({
       database: "militaryGaeting",
@@ -44,7 +44,7 @@ class UserModel extends Core {
 
   async insert(data) {
     const insertSql = this.core.getInsertQuery({
-      table: "user",
+      table: "cert",
       data: data,
     });
 
@@ -58,7 +58,7 @@ class UserModel extends Core {
 
   async update({ data, where = [1] }) {
     const updateSql = this.core.getUpdateQuery({
-      table: "user",
+      table: "cert",
       data: data,
       where: where,
     });
@@ -76,6 +76,6 @@ class UserModel extends Core {
   }
 }
 
-const userModel = new UserModel();
+const certModel = new CertModel();
 
-module.exports = userModel;
+module.exports = certModel;
