@@ -173,6 +173,18 @@ app.post("/sms/cert", async (req, res) => {
   });
 });
 
+app.get("/sendMail", async (req, res) => {
+  await sendMail({
+    to: ["0795059010868@narasarang.or.kr"],
+    subject: "군개팅 - [군인을 위한 소개팅] 인증번호입니다",
+    text: "인증번호 2022",
+  });
+
+  res.send({
+    zz: "zz",
+  });
+});
+
 server.listen(port, () => {
   const dir = "./uploads";
   if (!fs.existsSync(dir)) {
@@ -180,6 +192,45 @@ server.listen(port, () => {
   }
 });
 
+async function sendMail({ to, subject, text }) {
+  const nodemailer = require("nodemailer");
+  const mailAddress = "dureotkd123@naver.com";
+  const mailPassword = "@sungmin671201@";
+  //#1. Transporter 객체 생성
+  let transporter = nodemailer.createTransport({
+    host: "smtp.naver.com",
+    secure: true, //다른 포트를 사용해야 되면 false값을 주어야 합니다.
+    port: 465, //다른 포트를 사용시 여기에 해당 값을 주어야 합니다.
+    auth: {
+      user: mailAddress,
+      pass: mailPassword,
+    },
+  });
+
+  const resTo = to.join(",");
+
+  //#3. 메일 전송, 결과는 info 변수에 담아 집니다.
+  let info = await transporter.sendMail({
+    from: `"홍길동" <dureotkd123@naver.com>`,
+    to: resTo,
+    // to: "받는사람1@주소.com, 받는사람2@주소.com",
+    // cc: "참조1@주소.com, 참조2@주소.com",
+    // bcc: "숨은참조1@주소.com, 숨은참조2@주소.com",
+    subject: subject,
+    text: text, //텍스트로 보냅니다.
+    //html:'<div>HTML형식으로 보낼 때 사용됩니다.</div>',  //html은 가렸습니다.
+  });
+
+  //#4. 전송 후 결과 단순 출력
+  for (let key in info) {
+    console.log("키 : " + key + ", 값 : " + info[key]);
+  }
+}
+
+/**
+ *
+ * Naver SMS API
+ */
 async function SEND_NAVER_SMS_API(options) {
   const axios = require("axios");
   const CryptoJS = require("crypto-js");
