@@ -1,55 +1,70 @@
-const express = require("express");
-const http = require("http");
-const socketIo = require("socket.io");
+const express = require('express');
+const http = require('http');
+const socketIo = require('socket.io');
 const app = express();
 const server = http.createServer(app);
 const port = 4000;
-const cors = require("cors");
-const fs = require("fs");
-const multer = require("multer");
+const cors = require('cors');
+const fs = require('fs');
+const multer = require('multer');
 
-const session = require("express-session");
-const cookieParser = require("cookie-parser");
+const session = require('express-session');
+const cookieParser = require('cookie-parser');
 
-const ip = require("ip");
+const ip = require('ip');
 
-const model = require("./model/core");
+const model = require('./model/core');
 const Model = new model();
-// const UserModel = require("./model/user/userModel");
 
 app.use(express.json());
 app.use(cookieParser());
 app.use(express.urlencoded({ extended: false }));
 app.use(
   session({
-    secret: "THISSECRET",
+    secret: 'THISSECRET',
     resave: false,
     saveUninitialized: true,
-  })
+  }),
 );
 app.use(
   cors({
     origin: true,
     credentials: true,
-  })
+  }),
 );
 
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    cb(null, "./uploads");
+    cb(null, './uploads');
   },
   filename: function (req, file, cb) {
-    cb(null, file.fieldname + "_" + Date.now() + ".png");
+    cb(null, file.fieldname + '_' + Date.now() + '.png');
   },
 });
 const upload = multer({ storage });
 
-app.use((req, res, next) => {
+const testUserSeq = 1;
+
+app.use(async (req, res, next) => {
+  req.session.loginUser = {
+    seq: 1,
+    sex: 'man',
+  };
+
+  if (testUserSeq) {
+    const testUser = await Model.excute({
+      sql: `SELECT * FROM user WHERE seq = ${testUserSeq}`,
+      type: 'row',
+    });
+
+    req.session.loginUser = testUser;
+  }
+
   const { loginUser } = req.session;
 
-  const path_array = req.path.split("/");
+  const path_array = req.path.split('/');
   const req_name = path_array[path_array.length - 1];
-  const 로그인필요없는요청 = ["login", "logout", "join"];
+  const 로그인필요없는요청 = ['login', 'logout', 'join'];
 
   // if (로그인필요없는요청.includes(req_name) === false && empty(loginUser)) {
   //   res.status(401).send("");
@@ -63,7 +78,7 @@ app.use((req, res, next) => {
 
 const io = socketIo(server, {
   cors: {
-    origin: "*",
+    origin: '*',
   },
 });
 
@@ -71,40 +86,32 @@ const socketDB = {
   room: {},
 };
 
-io.on("connection", (socket) => {
+io.on('connection', (socket) => {
   const socket_id = socket.id;
 
-  console.log("소켓서버시작", socket_id);
+  console.log('소켓서버시작', socket_id);
 
-  socket.on("disconnect", () => {
+  socket.on('disconnect', () => {
     delete socketDB.room[socket_id];
-    console.log("소켓서버종료");
+    console.log('소켓서버종료');
   });
 });
 
 // ===================================== 소켓 =================================
 
-app.get("/", (req, res) => {
+app.get('/', (req, res) => {
   res.send({
-    name: "성민",
+    name: '성민',
     age: 30,
   });
 });
-const wait = async (duration) => {
-  return new Promise((resolve, reject) => {
-    setTimeout(() => {
-      resolve(true);
-    }, duration);
-  });
-};
 
-app.get("/login", async (req, res) => {
-  console.log("zz");
+app.get('/login', async (req, res) => {
   res.send(req.session);
 });
 
-app.post("/login", async (req, res) => {
-  const UserModel = require("./model/user/userModel");
+app.post('/login', async (req, res) => {
+  const UserModel = require('./model/user/userModel');
 
   const { phoneNumber, nickname, age, sex, local } = req.body;
 
@@ -123,27 +130,81 @@ app.post("/login", async (req, res) => {
   res.send(req.session.loginUser);
 });
 
-app.get("/sms/cert", async (req, res) => {
-  const { certNumber } = req.query;
+app.get('/sms/cert', async (req, res) => {
+  const { inputCertNumber = '', inputInfo = '' } = req.body;
 
   const result = {
-    code: "success",
-    message: "",
+    code: 'success',
+    message: '',
   };
 
-  const certRow = Model.excute({
-    sql: `SELECT * FROM cert WHERE `,
-    type: "row",
+  const nowIp = ip.address();
+
+  const WHERE = [
+    `type = 'sms'`,
+    `ip = '${nowIp}'`,
+    `info= '${inputInfo}'`,
+    `number = '${inputCertNumber}'`,
+  ];
+
+  const sql = `
+  SELECT 
+    COUNT(*) as cnt 
+  FROM 
+    cert 
+  WHERE 
+    ${WHERE.join(' AND ')} 
+  ORDER BY regDate DESC 
+  LIMIT 1`;
+
+  const { cnt } = await Model.excute({
+    sql: sql,
+    type: 'row',
   });
+
+  if (cnt === 0) {
+    result.code = 'fail';
+    result.message = '인증번호가 다릅니다';
+  }
 
   res.send(result);
 });
 
-app.post("/sms/cert", async (req, res) => {
+app.get('/matching', async (req, res) => {
+  const { loginUser } = req.session;
+
+  const 현재매칭중인회원들쿼리 = `
+  SELECT 
+    * ,
+    a.seq AS matchingSeq
+  FROM 
+    matching a , user b
+  WHERE 
+  ${[
+    'a.userSeq = b.seq',
+    "state = 'W'",
+    `a.userSeq != ${loginUser.seq}`,
+    `b.sex != '${loginUser.sex}'`,
+  ].join(' AND ')} 
+  ORDER BY 
+    a.regDate ASC`;
+
+  const 현재매칭중인회원 = await Model.excute({
+    sql: 현재매칭중인회원들쿼리,
+    type: 'all',
+  });
+
+  res.send(현재매칭중인회원);
+});
+
+app.post('/sms/cert', async (req, res) => {
   let { phoneNumber } = req.body;
-  const CertModel = require("./model/cert/certModel");
+
+  const CertModel = require('./model/cert/certModel');
+
   const certNumber = get_random_number(4);
   const nowDate = get_now_date();
+  const nowIp = ip.address();
 
   if (!phoneNumber) {
     res.send({});
@@ -151,8 +212,8 @@ app.post("/sms/cert", async (req, res) => {
   }
 
   await SEND_NAVER_SMS_API({
-    from: "01056539944",
-    content: `인증번호는 ${certNumber} 입니다`,
+    from: '01056539944',
+    content: `인증번호 ${certNumber}`,
     messages: [
       {
         to: phoneNumber,
@@ -160,45 +221,107 @@ app.post("/sms/cert", async (req, res) => {
     ],
   });
 
-  // await CertModel.insert({
-  //   phoneNumber: phoneNumber,
-  //   certNumber: certNumber,
-  //   regDate: nowDate,
-  //   editDate: nowDate,
-  //   ip: nowIp,
-  // });
+  await CertModel.insert({
+    type: 'sms',
+    info: phoneNumber,
+    number: certNumber,
+    regDate: nowDate,
+    editDate: nowDate,
+    ip: nowIp,
+  });
 
   res.send({
-    code: "success",
+    code: 'success',
   });
 });
 
-app.get("/sendMail", async (req, res) => {
+app.post('/mail/cert', async (req, res) => {
+  const { email = [] } = req.body;
+
+  const CertModel = require('./model/cert/certModel');
+
+  const nowDate = get_now_date();
+  const nowIp = ip.address();
+
+  const certNumber = get_random_number(4);
+
+  for (let data of email) {
+    await CertModel.insert({
+      type: 'mail',
+      info: data,
+      number: certNumber,
+      regDate: nowDate,
+      editDate: nowDate,
+      ip: nowIp,
+    });
+  }
+
   await sendMail({
-    to: ["0795059010868@narasarang.or.kr"],
-    subject: "군개팅 - [군인을 위한 소개팅] 인증번호입니다",
-    text: "인증번호 2022",
+    // to: ["0795059010868@narasarang.or.kr"],
+    to: email,
+    subject: '군개팅 - [군인을 위한 소개팅] 인증번호입니다',
+    text: `인증번호 ${certNumber}`,
   });
 
   res.send({
-    zz: "zz",
+    code: 'success',
   });
+});
+
+app.get('/mail/cert', async (req, res) => {
+  const { inputCertNumber = '', inputInfo = '' } = req.body;
+
+  const result = {
+    code: 'success',
+    message: '',
+  };
+
+  const nowIp = ip.address();
+
+  const WHERE = [
+    `type = 'mail'`,
+    `ip = '${nowIp}'`,
+    `info= '${inputInfo}'`,
+    `number = '${inputCertNumber}'`,
+  ];
+
+  const sql = `
+  SELECT 
+    COUNT(*) as cnt 
+  FROM 
+    cert 
+  WHERE 
+    ${WHERE.join(' AND ')} 
+  ORDER BY regDate DESC 
+  LIMIT 1`;
+
+  const cert = await Model.excute({
+    sql: sql,
+    type: 'row',
+  });
+
+  if (!cert) {
+    result.code = 'fail';
+    result.message = '인증번호가 다릅니다';
+  }
+
+  res.send(result);
 });
 
 server.listen(port, () => {
-  const dir = "./uploads";
+  const dir = './uploads';
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir);
   }
 });
 
 async function sendMail({ to, subject, text }) {
-  const nodemailer = require("nodemailer");
-  const mailAddress = "dureotkd123@naver.com";
-  const mailPassword = "@sungmin671201@";
+  const nodemailer = require('nodemailer');
+  const mailAddress = 'dureotkd123@naver.com';
+  const mailPassword = '@sungmin671201@';
   //#1. Transporter 객체 생성
   let transporter = nodemailer.createTransport({
-    host: "smtp.naver.com",
+    host: 'smtp.naver.com',
     secure: true, //다른 포트를 사용해야 되면 false값을 주어야 합니다.
     port: 465, //다른 포트를 사용시 여기에 해당 값을 주어야 합니다.
     auth: {
@@ -207,7 +330,7 @@ async function sendMail({ to, subject, text }) {
     },
   });
 
-  const resTo = to.join(",");
+  const resTo = to.join(',');
 
   //#3. 메일 전송, 결과는 info 변수에 담아 집니다.
   let info = await transporter.sendMail({
@@ -223,7 +346,7 @@ async function sendMail({ to, subject, text }) {
 
   //#4. 전송 후 결과 단순 출력
   for (let key in info) {
-    console.log("키 : " + key + ", 값 : " + info[key]);
+    console.log('키 : ' + key + ', 값 : ' + info[key]);
   }
 }
 
@@ -232,17 +355,17 @@ async function sendMail({ to, subject, text }) {
  * Naver SMS API
  */
 async function SEND_NAVER_SMS_API(options) {
-  const axios = require("axios");
-  const CryptoJS = require("crypto-js");
+  const axios = require('axios');
+  const CryptoJS = require('crypto-js');
 
   const date = Date.now().toString();
-  const SERVICE_ID = "ncp:sms:kr:260593297699:military-garting";
-  const SECRET_KEY = "BaTdpzYpdkZ9AQO2puRQFl4cp5S6uFaaSAlrKDde";
-  const ACCESS_KEY = "Cs1Oz7GhrZdTTb6Jq63O";
+  const SERVICE_ID = 'ncp:sms:kr:260593297699:military-garting';
+  const SECRET_KEY = 'BaTdpzYpdkZ9AQO2puRQFl4cp5S6uFaaSAlrKDde';
+  const ACCESS_KEY = 'Cs1Oz7GhrZdTTb6Jq63O';
 
-  const method = "POST";
-  const space = " ";
-  const newLine = "\n";
+  const method = 'POST';
+  const space = ' ';
+  const newLine = '\n';
   const url2 = `/sms/v2/services/${SERVICE_ID}/messages`;
 
   const hmac = CryptoJS.algo.HMAC.create(CryptoJS.algo.SHA256, SECRET_KEY);
@@ -260,18 +383,18 @@ async function SEND_NAVER_SMS_API(options) {
     .post(
       `https://sens.apigw.ntruss.com/sms/v2/services/${SERVICE_ID}/messages`,
       {
-        type: "SMS",
-        countryCode: "82",
+        type: 'SMS',
+        countryCode: '82',
         ...options,
       },
       {
         headers: {
-          "Contenc-type": "application/json; charset=utf-8",
-          "x-ncp-iam-access-key": ACCESS_KEY,
-          "x-ncp-apigw-timestamp": date,
-          "x-ncp-apigw-signature-v2": SIGNATURE,
+          'Contenc-type': 'application/json; charset=utf-8',
+          'x-ncp-iam-access-key': ACCESS_KEY,
+          'x-ncp-apigw-timestamp': date,
+          'x-ncp-apigw-signature-v2': SIGNATURE,
         },
-      }
+      },
     )
     .then((res) => {})
     .catch((err) => {
@@ -287,15 +410,15 @@ function get_random_number(max) {
     a.push(c);
   }
 
-  return a.join("");
+  return a.join('');
 }
 
 function get_now_date() {
   const today = new Date();
 
   const year = today.getFullYear();
-  const month = ("0" + (today.getMonth() + 1)).slice(-2);
-  const day = ("0" + today.getDate()).slice(-2);
+  const month = ('0' + (today.getMonth() + 1)).slice(-2);
+  const day = ('0' + today.getDate()).slice(-2);
 
   const hour = today.getHours();
   const min = today.getMinutes();
@@ -310,10 +433,8 @@ function timeForToday(value) {
   const today = new Date();
   const timeValue = new Date(value);
 
-  const betweenTime = Math.floor(
-    (today.getTime() - timeValue.getTime()) / 1000 / 60
-  );
-  if (betweenTime < 1) return "방금전";
+  const betweenTime = Math.floor((today.getTime() - timeValue.getTime()) / 1000 / 60);
+  if (betweenTime < 1) return '방금전';
   if (betweenTime < 60) {
     return `${betweenTime}분전`;
   }
@@ -337,15 +458,23 @@ function timeForToday(value) {
 // [], {} 도 빈값으로 처리
 var empty = function (value) {
   if (
-    value == "" ||
+    value == '' ||
     value == null ||
     value == undefined ||
-    (value != null && typeof value == "object" && !Object.keys(value).length)
+    (value != null && typeof value == 'object' && !Object.keys(value).length)
   ) {
     return true;
   } else {
     return false;
   }
+};
+
+const wait = async (duration) => {
+  return new Promise((resolve, reject) => {
+    setTimeout(() => {
+      resolve(true);
+    }, duration);
+  });
 };
 
 function replaceAllObject(obj, replace, str) {
