@@ -106,24 +106,24 @@ app.get('/', (req, res) => {
   });
 });
 
-app.get('/login', async (req, res) => {
+app.post('/login', async (req, res) => {
   res.send(req.session);
 });
 
-app.post('/login', async (req, res) => {
+app.post('/join', async (req, res) => {
   const UserModel = require('./model/user/userModel');
 
   const { phoneNumber, nickname, age, sex, local } = req.body;
 
-  // const lastInsertSeq = await UserModel.insert({
-  //   phoneNumber,
-  //   nickname,
-  //   age,
-  //   sex,
-  //   local,
-  // });
+  const lastInsertSeq = await UserModel.insert({
+    phoneNumber,
+    nickname,
+    age,
+    sex,
+    local,
+  });
 
-  req.body.seq = 1;
+  req.body.seq = lastInsertSeq;
   req.session.loginUser = req.body;
   req.session.save();
 
@@ -131,7 +131,7 @@ app.post('/login', async (req, res) => {
 });
 
 app.get('/sms/cert', async (req, res) => {
-  const { inputCertNumber = '', inputInfo = '' } = req.body;
+  const { certNumber = '', inputInfo = '' } = req.query;
 
   const result = {
     code: 'success',
@@ -144,7 +144,7 @@ app.get('/sms/cert', async (req, res) => {
     `type = 'sms'`,
     `ip = '${nowIp}'`,
     `info= '${inputInfo}'`,
-    `number = '${inputCertNumber}'`,
+    `number = '${certNumber}'`,
   ];
 
   const sql = `
@@ -202,12 +202,20 @@ app.post('/sms/cert', async (req, res) => {
 
   const CertModel = require('./model/cert/certModel');
 
+  const result = {
+    code: 'success',
+    message: '',
+  };
+
   const certNumber = get_random_number(4);
   const nowDate = get_now_date();
   const nowIp = ip.address();
 
   if (!phoneNumber) {
-    res.send({});
+    result.code = 'fail';
+    result.message = '에러~';
+
+    res.send(result);
     return;
   }
 
@@ -226,39 +234,34 @@ app.post('/sms/cert', async (req, res) => {
     info: phoneNumber,
     number: certNumber,
     regDate: nowDate,
-    editDate: nowDate,
     ip: nowIp,
   });
 
-  res.send({
-    code: 'success',
-  });
+  res.send(result);
 });
 
-app.post('/mail/cert', async (req, res) => {
-  const { email = [] } = req.body;
+// 0795059010868
+app.post('/email/cert', async (req, res) => {
+  const { email } = req.body;
 
   const CertModel = require('./model/cert/certModel');
 
   const nowDate = get_now_date();
   const nowIp = ip.address();
-
   const certNumber = get_random_number(4);
 
-  for (let data of email) {
+  for (let data of [email]) {
     await CertModel.insert({
       type: 'mail',
       info: data,
       number: certNumber,
       regDate: nowDate,
-      editDate: nowDate,
       ip: nowIp,
     });
   }
 
   await sendMail({
-    // to: ["0795059010868@narasarang.or.kr"],
-    to: email,
+    to: [`${email}@narasarang.or.kr`],
     subject: '군개팅 - [군인을 위한 소개팅] 인증번호입니다',
     text: `인증번호 ${certNumber}`,
   });
@@ -268,8 +271,8 @@ app.post('/mail/cert', async (req, res) => {
   });
 });
 
-app.get('/mail/cert', async (req, res) => {
-  const { inputCertNumber = '', inputInfo = '' } = req.body;
+app.get('/email/cert', async (req, res) => {
+  const { certNumber = '', inputInfo = '' } = req.query;
 
   const result = {
     code: 'success',
@@ -282,7 +285,7 @@ app.get('/mail/cert', async (req, res) => {
     `type = 'mail'`,
     `ip = '${nowIp}'`,
     `info= '${inputInfo}'`,
-    `number = '${inputCertNumber}'`,
+    `number = '${certNumber}'`,
   ];
 
   const sql = `
@@ -295,12 +298,12 @@ app.get('/mail/cert', async (req, res) => {
   ORDER BY regDate DESC 
   LIMIT 1`;
 
-  const cert = await Model.excute({
+  const { cnt } = await Model.excute({
     sql: sql,
     type: 'row',
   });
 
-  if (!cert) {
+  if (cnt === 0) {
     result.code = 'fail';
     result.message = '인증번호가 다릅니다';
   }
@@ -315,6 +318,7 @@ server.listen(port, () => {
   }
 });
 
+// 0795059010868
 async function sendMail({ to, subject, text }) {
   const nodemailer = require('nodemailer');
   const mailAddress = 'dureotkd123@naver.com';
@@ -334,7 +338,7 @@ async function sendMail({ to, subject, text }) {
 
   //#3. 메일 전송, 결과는 info 변수에 담아 집니다.
   let info = await transporter.sendMail({
-    from: `"홍길동" <dureotkd123@naver.com>`,
+    from: `"군개팅" <dureotkd123@naver.com>`,
     to: resTo,
     // to: "받는사람1@주소.com, 받는사람2@주소.com",
     // cc: "참조1@주소.com, 참조2@주소.com",
