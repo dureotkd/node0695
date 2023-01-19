@@ -211,7 +211,7 @@ app.post('/sms/cert', async (req, res) => {
     return;
   }
 
-  await SEND_NAVER_SMS_API({
+  await sendSms({
     from: '01056539944',
     content: `인증번호 ${certNumber}`,
     messages: [
@@ -354,7 +354,7 @@ async function sendMail({ to, subject, text }) {
  *
  * Naver SMS API
  */
-async function SEND_NAVER_SMS_API(options) {
+async function sendSms(options) {
   const axios = require('axios');
   const CryptoJS = require('crypto-js');
 
