@@ -112,8 +112,7 @@ app.post('/login', async (req, res) => {
 
 app.post('/join', async (req, res) => {
   const UserModel = require('./model/user/userModel');
-
-  const { phoneNumber, nickname, age, sex, local } = req.body;
+  const { phoneNumber, nickname, age, sex, local, charm, interest } = req.body;
 
   const lastInsertSeq = await UserModel.insert({
     phoneNumber,
@@ -121,6 +120,8 @@ app.post('/join', async (req, res) => {
     age,
     sex,
     local,
+    charm,
+    interest,
   });
 
   req.body.seq = lastInsertSeq;
@@ -128,6 +129,35 @@ app.post('/join', async (req, res) => {
   req.session.save();
 
   res.send(req.session.loginUser);
+});
+
+app.get('/charm', async (req, res) => {
+  const charmList = await Model.excute({
+    sql: 'SELECT * FROM charm',
+    type: 'all',
+  });
+  const charmListData = charmList.map((item) => {
+    item.check = false;
+    item.value = item.seq;
+    return item;
+  });
+
+  res.send(charmListData);
+});
+
+app.get('/interest', async (req, res) => {
+  const interestList = await Model.excute({
+    sql: 'SELECT * FROM interest',
+    type: 'all',
+  });
+
+  const interestListData = interestList.map((item) => {
+    item.check = false;
+    item.value = item.seq;
+    return item;
+  });
+
+  res.send(interestListData);
 });
 
 app.get('/sms/cert', async (req, res) => {
